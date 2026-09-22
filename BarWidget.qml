@@ -12,9 +12,16 @@ BarWidget {
   readonly property var cities: boundedCities()
   readonly property string timeFormat: String(setting("timeFormat", "24h"))
   readonly property bool showSeconds: setting("showSeconds", false) === true
+  readonly property int rotateIntervalSec: intSetting("rotateIntervalSec", 5)
   property var offsets: ({})
   property double tick: Date.now()
+  property int currentIndex: 0
   readonly property string clockPath: Qt.resolvedUrl("clockdata").toString().replace(/^file:\/\//, "")
+
+  function intSetting(name, dflt) {
+    var n = parseInt(String(setting(name, dflt)), 10);
+    return isFinite(n) ? n : dflt;
+  }
 
   function boundedCities() {
     var v = setting("cities", ["Asia/Jakarta"]);
@@ -39,14 +46,19 @@ BarWidget {
     return p(h) + ":" + p(m) + (showSeconds ? ":" + p(s) : "");
   }
 
-  readonly property string firstZone: cities.length ? cities[0] : "Asia/Jakarta"
-  readonly property string pillText: TZ.shortCode(firstZone) + " " + fmt(firstZone)
-    + (cities.length > 1 ? " +" + (cities.length - 1) : "")
+  readonly property bool rotationActive: cities.length > 1 && rotateIntervalSec > 0 && !vertical && !opened
+  readonly property string currentZone: cities.length ? cities[currentIndex % cities.length] : "Asia/Jakarta"
+  readonly property string pillText: TZ.shortCode(currentZone) + " " + fmt(currentZone)
   readonly property string tipText: {
     var lines = [];
     for (var i = 0; i < cities.length; i++)
       lines.push(TZ.shortCode(cities[i]) + " " + fmt(cities[i]) + "  " + TZ.cityOf(cities[i]));
     return lines.join("\n");
+  }
+
+  function advanceIndex() {
+    if (cities.length < 2) return;
+    currentIndex = (currentIndex + 1) % cities.length;
   }
 
   function refreshOffsets() {
@@ -55,10 +67,23 @@ BarWidget {
     clockProc.running = true;
   }
   function refresh() { refreshOffsets(); }
-  onCitiesChanged: refreshOffsets()
+  onCitiesChanged: {
+    if (currentIndex >= cities.length) currentIndex = 0;
+    refreshOffsets();
+  }
   Component.onCompleted: refreshOffsets()
   SystemClock { precision: SystemClock.Seconds; onDateChanged: root.tick = date.getTime() }
   Timer { interval: 60000; running: true; repeat: true; onTriggered: root.refreshOffsets() }
+  Timer {
+    id: rotateTimer
+    interval: Math.max(1, root.rotateIntervalSec) * 1000
+    running: root.rotationActive
+    repeat: true
+    onTriggered: {
+      if (!root.rotationActive || slideAnim.running) return;
+      slideAnim.restart();
+    }
+  }
   Process {
     id: clockProc
     stdout: StdioCollector {
@@ -107,11 +132,26 @@ BarWidget {
     text: root.vertical ? "" : root.pillText
   }
 
+  SequentialAnimation {
+    id: slideAnim
+    ParallelAnimation {
+      NumberAnimation { target: slideText; property: "y"; to: -14; duration: 150; easing.type: Easing.InCubic }
+      NumberAnimation { target: slideText; property: "opacity"; to: 0; duration: 150 }
+    }
+    ScriptAction { script: root.advanceIndex(); }
+    PropertyAction { target: slideText; property: "y"; value: 14 }
+    ParallelAnimation {
+      NumberAnimation { target: slideText; property: "y"; to: 0; duration: 200; easing.type: Easing.OutCubic }
+      NumberAnimation { target: slideText; property: "opacity"; to: 1; duration: 200 }
+    }
+  }
+
   BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: root.vertical ? "" : root.pillText
+    text: " "
+    labelVisible: false
     slotSize: root.vertical ? Style.bar.iconSlot
       : Math.max(Style.bar.statusSlot, Math.ceil(pillMetrics.width) + Style.space(9))
     opticalSize: slotSize
@@ -120,6 +160,20 @@ BarWidget {
       if (!root.bar) return;
       if (b === Qt.RightButton) cycleFormat();
       else root.togglePanel();
+    }
+
+    Item {
+      anchors.fill: parent
+      clip: true
+      Text {
+        id: slideText
+        textFormat: Text.PlainText
+        anchors.centerIn: parent
+        text: root.vertical ? "" : root.pillText
+        color: root.bar ? root.bar.barForeground : Color.foreground
+        font.family: root.bar ? root.bar.fontFamily : Style.font.family
+        font.pixelSize: Style.bar.iconFont
+      }
     }
   }
 
