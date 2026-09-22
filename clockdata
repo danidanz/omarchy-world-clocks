@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+"""Emit current epoch plus UTC offset/abbr per IANA zone as JSON."""
+import json
+import sys
+import time
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+now = time.time()
+out = {"now": now, "zones": {}}
+for zone in sys.argv[1:]:
+    try:
+        dt = datetime.fromtimestamp(now, ZoneInfo(zone))
+        off = dt.utcoffset()
+        out["zones"][zone] = {
+            "offset": int(off.total_seconds()) if off is not None else 0,
+            "abbr": dt.tzname() or "",
+        }
+    except Exception as exc:
+        out["zones"][zone] = {"error": str(exc)[:120]}
+print(json.dumps(out))
