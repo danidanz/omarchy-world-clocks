@@ -135,13 +135,13 @@ BarWidget {
   SequentialAnimation {
     id: slideAnim
     ParallelAnimation {
-      NumberAnimation { target: slideText; property: "y"; to: -14; duration: 150; easing.type: Easing.InCubic }
+      NumberAnimation { target: slideTrans; property: "y"; to: -14; duration: 150; easing.type: Easing.InCubic }
       NumberAnimation { target: slideText; property: "opacity"; to: 0; duration: 150 }
     }
     ScriptAction { script: root.advanceIndex(); }
-    PropertyAction { target: slideText; property: "y"; value: 14 }
+    PropertyAction { target: slideTrans; property: "y"; value: 14 }
     ParallelAnimation {
-      NumberAnimation { target: slideText; property: "y"; to: 0; duration: 200; easing.type: Easing.OutCubic }
+      NumberAnimation { target: slideTrans; property: "y"; to: 0; duration: 200; easing.type: Easing.OutCubic }
       NumberAnimation { target: slideText; property: "opacity"; to: 1; duration: 200 }
     }
   }
@@ -169,6 +169,7 @@ BarWidget {
         id: slideText
         textFormat: Text.PlainText
         anchors.centerIn: parent
+        transform: Translate { id: slideTrans; y: 0 }
         text: root.vertical ? "" : root.pillText
         color: root.bar ? root.bar.barForeground : Color.foreground
         font.family: root.bar ? root.bar.fontFamily : Style.font.family
